@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
 
 const popularCoins = [
@@ -18,6 +18,9 @@ const CryptoSearch = ({ onSearch, searchResults = [], onSelectCrypto, loading })
   const [showPopular, setShowPopular] = useState(false);
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
+  const lastSearchTimeRef = useRef(0);
+  const RATE_LIMIT_DELAY = 500; // 500ms delay between searches
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -31,15 +34,45 @@ const CryptoSearch = ({ onSearch, searchResults = [], onSelectCrypto, loading })
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const debouncedSearch = useCallback((value) => {
+    const now = Date.now();
+    const timeSinceLastSearch = now - lastSearchTimeRef.current;
+    
+    if (timeSinceLastSearch < RATE_LIMIT_DELAY) {
+      // Clear existing timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      // Set new timeout
+      searchTimeoutRef.current = setTimeout(() => {
+        lastSearchTimeRef.current = Date.now();
+        onSearch(value);
+      }, RATE_LIMIT_DELAY - timeSinceLastSearch);
+    } else {
+      lastSearchTimeRef.current = now;
+      onSearch(value);
+    }
+  }, [onSearch]);
+
   const handleSearch = (value) => {
-    setSearchTerm(value);
-    if (value.trim().length > 0) {
+    // Input validation and sanitization
+    const sanitizedValue = value.replace(/[<>"'&]/g, '').trim();
+    const maxLength = 50;
+    const finalValue = sanitizedValue.length > maxLength ? sanitizedValue.substring(0, maxLength) : sanitizedValue;
+    
+    setSearchTerm(finalValue);
+    if (finalValue.length > 0 && finalValue.length >= 2) {
       setIsOpen(true);
       setShowPopular(false);
-      onSearch(value);
+      debouncedSearch(finalValue);
     } else {
       setIsOpen(false);
       setShowPopular(false);
+      // Clear timeout if search term is too short
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
     }
   };
 

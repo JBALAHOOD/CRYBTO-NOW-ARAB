@@ -6,7 +6,17 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: true
+    host: 'localhost',
+    cors: {
+      origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+      credentials: true
+    },
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'strict-origin-when-cross-origin'
+    }
   },
   resolve: {
     alias: {
@@ -21,4 +31,4 @@ export default defineConfig({
       },
     },
   },
-}) 
+})

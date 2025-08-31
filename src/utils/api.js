@@ -1,10 +1,43 @@
 // CoinGecko API utilities
 const BASE_URL = 'https://api.coingecko.com/api/v3';
+const REQUEST_TIMEOUT = 10000; // 10 seconds
+const MAX_RETRIES = 3;
+
+// Create fetch with timeout
+const fetchWithTimeout = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
+// Retry mechanism
+const fetchWithRetry = async (url, options = {}, retries = MAX_RETRIES) => {
+  try {
+    return await fetchWithTimeout(url, options);
+  } catch (error) {
+    if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw error;
+  }
+};
 
 // Fetch cryptocurrency market data
 export const fetchCryptoMarketData = async (page = 1, perPage = 249) => {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${BASE_URL}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=24h,7d`
     );
     
@@ -41,7 +74,7 @@ export const fetchCryptoMarketData = async (page = 1, perPage = 249) => {
 // Search cryptocurrencies
 export const searchCryptocurrencies = async (query) => {
   try {
-    const response = await fetch(`${BASE_URL}/search?query=${encodeURIComponent(query)}`);
+    const response = await fetchWithRetry(`${BASE_URL}/search?query=${encodeURIComponent(query)}`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -58,7 +91,7 @@ export const searchCryptocurrencies = async (query) => {
 // Fetch detailed cryptocurrency data
 export const fetchCryptoDetails = async (coinId) => {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${BASE_URL}/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=true`
     );
     
@@ -76,7 +109,7 @@ export const fetchCryptoDetails = async (coinId) => {
 // Fetch global market data
 export const fetchGlobalMarketData = async () => {
   try {
-    const response = await fetch(`${BASE_URL}/global`);
+    const response = await fetchWithRetry(`${BASE_URL}/global`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -93,7 +126,7 @@ export const fetchGlobalMarketData = async () => {
 // Fetch trending cryptocurrencies
 export const fetchTrendingCryptos = async () => {
   try {
-    const response = await fetch(`${BASE_URL}/search/trending`);
+    const response = await fetchWithRetry(`${BASE_URL}/search/trending`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
